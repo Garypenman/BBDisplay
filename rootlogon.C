@@ -1,0 +1,5 @@
+{
+   
+  gROOT->LoadMacro("ConfigParser.C+");
+
+}
