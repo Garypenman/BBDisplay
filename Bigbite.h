@@ -156,6 +156,7 @@ public :
    Double_t        bb_gem_track_y[3];   //[Ndata.bb.gem.track.y]
    Int_t           Ndata_bb_gem_track_yp;
    Double_t        bb_gem_track_yp[3];   //[Ndata.bb.gem.track.yp]
+   //hodo
    Int_t           Ndata_bb_hodotdc_allclus_id;
    Double_t        bb_hodotdc_allclus_id[30];   //[Ndata.bb.hodotdc.allclus.id]
    Int_t           Ndata_bb_hodotdc_allclus_itrack;
@@ -202,6 +203,7 @@ public :
    Double_t        bb_hodotdc_clus_xmean[1];   //[Ndata.bb.hodotdc.clus.xmean]
    Int_t           Ndata_bb_hodotdc_clus_ymean;
    Double_t        bb_hodotdc_clus_ymean[1];   //[Ndata.bb.hodotdc.clus.ymean]
+   //Preshower
    Int_t           Ndata_bb_ps_clus_atime;
    Double_t        bb_ps_clus_atime[7];   //[Ndata.bb.ps.clus.atime]
    Int_t           Ndata_bb_ps_clus_col;
@@ -240,6 +242,7 @@ public :
    Double_t        bb_ps_clus_blk_x[4];   //[Ndata.bb.ps.clus_blk.x]
    Int_t           Ndata_bb_ps_clus_blk_y;
    Double_t        bb_ps_clus_blk_y[4];   //[Ndata.bb.ps.clus_blk.y]
+   //Shower
    Int_t           Ndata_bb_sh_clus_atime;
    Double_t        bb_sh_clus_atime[7];   //[Ndata.bb.sh.clus.atime]
    Int_t           Ndata_bb_sh_clus_col;
