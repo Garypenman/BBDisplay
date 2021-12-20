@@ -43,22 +43,22 @@
 #include <TVectorD.h>
 #include <vector>
 
-//#include "bbgrinch.C"
-//#include "bbcal.C"
-//#include "bbhodo.C"
-//#include "bbgem.C"
 #include "Bigbite.C"
 
 std::string user_input;
 
 Int_t gCurrentEntry = -1;
-Int_t runnum;
-char skipAns;
 
 const Int_t kCanvSize = 100;
 const Int_t kNrows = 24;
 const Int_t kNcols = 12;
-TCanvas *subCanv[2];
+TCanvas *c;
+TPad *p1; //gems1-4
+TPad *p2; //grinch
+TPad *p3; //gem5
+TPad *p4; //ps
+TPad *p5; //hodo
+TPad *p6; //sh
 
 TString bbFile;
 TChain *fbbChain;
@@ -85,7 +85,7 @@ double layer[maxch];
 double ADCU[maxch];
 double ADCV[maxch];
 UInt_t evtID;
-TH2F *h[5];
+TH2F *hGem[5];
 
 //Grinch
 const Int_t N_PMT=510;
@@ -120,29 +120,25 @@ Double_t grinch_pmt_row[512];
 Double_t grinch_pmt_col[512];
 
 //BBcal
-//TBox *pspmt[2][26];
-//TBox *shpmt[7][27];
 TH2F *hPS;
 TH2F *hSH;
-//Double_t psfactor;
-//Double_t psfactorMax;
-//Double_t shfactor;
-//Double_t ShfactorMax;
 
 //Hodo
 TBox* bar[90];
 TBox* pmtL[90];
 TBox* pmtR[90];
 TMarker* hit[90];
-double ymin       = 0.00;
-double barxmin    = 0.1;
-double barxmax    = 0.9;
-double height     = 0.0095;
-double separation = (1. / 90.);
+double ymin       = 0.0428;
+double barxmin    = 0.0;//0.1;
+double barxmax    = 1.0;//0.9;
+double height     = 2.54 / 250.;
+double separation = 2.54 / 250.;
 double pmtLxmin   = 0.0;
-double pmtLxmax   = 0.09;
-double pmtRxmin   = 0.89;
+double pmtLxmax   = 0.1;
+double pmtRxmin   = 0.9;
 double pmtRxmax   = 1.00;
+
+double timecut = 0.0;
 
 //track only events
 bool trackBool;
@@ -152,12 +148,9 @@ bool trackBool;
 //--------------------------------
 void Setup(Int_t runNum, char skipAns) {
   //need to get this path from the replay scripts output dir
-  TString RootDir = gSystem->Getenv("OUT_DIR");
-  bbFile = RootDir+"/gmn_replayed_"+runNum+"_stream0_seg0_76_5.root";
-  //bbFile = Form("whodo/combined_%i_-1.root",runNum);
-  
+  TString RootDir = gSystem->Getenv("OUT_DIR"); 
   fbbChain = new TChain("T");
-  fbbChain->Add(bbFile);
+  fbbChain->Add(RootDir+"gmn_replayed_"+runNum+"_stream0_seg*.root");
   Tbb = new Bigbite(fbbChain);
   
   //branch address for gem display - it needs these
@@ -199,26 +192,21 @@ namespace gui {
   TGNumberEntry *entryInput;
   //TGLabel *ledLabel;
   
-  TRootEmbeddedCanvas *canv[1];
+  TRootEmbeddedCanvas *canv;
   
-  TGCompositeFrame* AddTabSub(Int_t sub) {
-    tf = fTab->AddTab(Form("Run: %d",runnum));
-
+  TGCompositeFrame* AddTabSub(Int_t sub,Int_t runNum) {
+    tf = fTab->AddTab(Form("Run: %i",runNum));
     TGCompositeFrame *fF5 = new TGCompositeFrame(tf, (12+1)*kCanvSize,(6+1)*kCanvSize , kHorizontalFrame);
     TGLayoutHints *fL4 = new TGLayoutHints(kLHintsTop | kLHintsLeft | kLHintsExpandX |
-        kLHintsExpandY, 5, 5, 5, 5);
-    TRootEmbeddedCanvas *fEc1 = new TRootEmbeddedCanvas(Form("hcalSubCanv%d",sub), fF5, 14*kCanvSize,8*kCanvSize);
-    //Int_t wid = fEc1->GetCanvasWindowId();
-    //subCanv[sub] = new TCanvas(Form("subCanv%d",sub),10,10,wid);
-    //subCanv[sub]->Divide(12,6);
-    //fEc1->AdoptCanvas(subCanv[sub]);
-    canv[sub] = fEc1;
+					   kLHintsExpandY, 5, 5, 5, 5);
+    TRootEmbeddedCanvas *fEc1 = new TRootEmbeddedCanvas(Form("SubCanv%d",sub), fF5, 14*kCanvSize,8*kCanvSize);
+    canv = fEc1;
     fF5->AddFrame(fEc1,fL4);
     tf->AddFrame(fF5,fL4);
     return tf;
   }
   
-  void SetupGUI() {
+  void SetupGUI(Int_t runNum) {
     if(!main) {
       main = new TGMainFrame(gClient->GetRoot()); // main window 1000 900
       frame1 = new TGHorizontalFrame(main,1,1,kFixedWidth); //"bottom bar with buttons" 150 20
@@ -248,22 +236,41 @@ namespace gui {
       
       // Create Tabs
       for(Int_t i = 0; i < 1; i++) {
-        tf = AddTabSub(i);
+        tf = AddTabSub(i,runNum);
       }
       
       main->AddFrame(fTab, new TGLayoutHints(kLHintsBottom | kLHintsExpandX |
 					     kLHintsExpandY, 2, 2, 5, 1));
       main->MapSubwindows();
-      main->Resize();   // resize to default size
+      main->Resize(1375,825);   // resize to default size
       main->MapWindow();
       
       //gStyle->SetPalette(1);
       gStyle->SetOptStat(0);
       gStyle->SetOptTitle(0);
-      for(Int_t i = 0; i < 1; i++) {
-        subCanv[i] = canv[i]->GetCanvas();
-	subCanv[i]->Divide(2,1,0.001,0.001);
-      }
+      //subCanv = canv->GetCanvas();
+      
+      Double_t padSpacing = 0.02;
+      Double_t FgemW = 0.4; //h=150cm w=40cm
+      Double_t BgemW = 0.6; //h=200cm w=60cm
+      Double_t grinchW = 0.32; //h=60x3.5cm w=9x3.5cm (29mm size + 5mm spacing)
+      Double_t psW = 0.6; //h=26x8.5cm, w=60cm
+      Double_t shW = 0.6; //h=27x8.5cm w=7x8.5cm
+      Double_t hodoW = 0.6; //h=225 width of bars=60cm 
+      Double_t totalW = 4*FgemW + grinchW + BgemW + psW + shW + hodoW + 8*padSpacing;
+      p1 = new TPad("p1","Gem_0-3",0.0,0.2,1.66/totalW,0.8);
+      p2 = new TPad("p2", "Grinch",1.68/totalW,0.08,2./totalW,1.0-0.08);
+      p3 = new TPad("p3","Gem_4",2.02/totalW,0.1,2.62/totalW,0.9);
+      p4 = new TPad("p4","Preshower",2.64/totalW,0.058,3.24/totalW,1-0.058);     
+      p5 = new TPad("p5","Hodoscope",3.26/totalW,0.0,3.86/totalW,1.0);
+      p6 = new TPad("p6","Shower",3.88/totalW,0.041,1.0,1-0.041);
+      p1->Divide(4,1,0.01,0.01);
+      p1->Draw();
+      p2->Draw();
+      p3->Draw();
+      p4->Draw();
+      p5->Draw();
+      p6->Draw();
     }
   }
 }
@@ -273,31 +280,28 @@ struct GEMLayer
 {
   int layerID, nmodules, U_strips, V_strips;
   TString GEMtype;
-
-
 };
 
 
 // This function creates the histogram frame for each layer
-//void DrawModules(TH2F *h, GEMLayer gem_layer){
 void DrawModules(GEMLayer gem_layer){
   //Read in number of strips
   int U_tot = gem_layer.U_strips*gem_layer.nmodules;
   int V_tot = gem_layer.V_strips;
   int layer = gem_layer.layerID;
-  delete h[layer];
+  delete hGem[layer];
   //Make axis ranges from 0 to 1 for UV layers because they are complicated
   if(gem_layer.GEMtype == "UV"){
-    h[layer] = new TH2F(Form("Layer_%i",layer),Form("Layer %i",layer),V_tot,0,1,U_tot,0,1);
+    hGem[layer] = new TH2F(Form("Layer_%i",layer),Form("Layer %i",layer),V_tot,0,1,V_tot,0,3.75);
     //For XY layers simply make axis ranges the same as the number of strips
   }else{
-    h[layer] = new TH2F(Form("Layer_%i",layer),Form("Layer %i",layer),V_tot,0,V_tot,U_tot,0,U_tot);
+    hGem[layer] = new TH2F(Form("Layer_%i",layer),Form("Layer %i",layer),V_tot,0,V_tot,U_tot,0,U_tot);
   }
-  h[layer]->GetXaxis()->SetLabelSize(0.0);
-  h[layer]->GetXaxis()->SetLabelColor(10); 
-  h[layer]->GetYaxis()->SetLabelSize(0.0);
-  h[layer]->GetYaxis()->SetLabelColor(10); 
-  h[layer]->Draw();
+  hGem[layer]->GetXaxis()->SetLabelSize(0.0);
+  hGem[layer]->GetXaxis()->SetLabelColor(10); 
+  hGem[layer]->GetYaxis()->SetLabelSize(0.0);
+  hGem[layer]->GetYaxis()->SetLabelColor(10); 
+  hGem[layer]->Draw();
   //Some layers have multiple modules. Draw lines to show divisions between them
   for(int imod = 0; imod < gem_layer.nmodules; imod++){
     if(imod == 0) continue;
@@ -317,63 +321,90 @@ void StripConfig(GEMLayer gem_layer, double U_strip_line[][4], double V_strip_li
     double angle = 30*3.14159/180;
     // Strips follow y = -tan(30)x + b. The only difference between strips is a different "b" offset
     // The strips end at (x,y) = (1,1) so we calcualte db to be enenly spaced between (0,0) and (1,1)
-    double db = (1 + tan(angle))/gem_layer.U_strips;
+    double db = (3.75 + tan(angle))/gem_layer.U_strips;
     
     double int_L = 0;
     double int_R = 1;
     int itop = 0;
-    
+    int ibot = 0;
     //There are some plotting issues when the angled line reaches the top of the plot
+    /*
     for(int istrip=0; istrip < gem_layer.U_strips; istrip++){
-      if(db*istrip > 1) {
+      if(db*istrip > tan(angle)) {
+	ibot = istrip;
+	break;
+      }
+    }
+    */
+    
+    for(int istrip=ibot; istrip < gem_layer.U_strips; istrip++){
+      if(db*istrip > 3.75) {
 	itop = istrip;
 	break;
       }
     }
     
+    /*
+    for(int istrip=0; istrip < ibot; istrip++){
+      continue;
+    }
+    */
+    
     //Loop over strips and get positions
-    for(int istrip=0; istrip < itop; istrip++){
+    for(int istrip=ibot; istrip < itop; istrip++){
       //Increment by db for all strips
-      double b = db*(istrip+1);
-      //The right side of the strip is this formula
-      double right_bound = b/tan(angle);
+      double b = db*(istrip);
+      
       //If we are hitting the edge of the canvas switch to 1 instead.
-      if(right_bound > 1) right_bound = 1;
+      //if(right_bound > 1) right_bound = 1;
       
       //All these values follow from setting left boundary to y = 0 and 
       //bottom boundary to x = 0 and using y = -tan(30)x + b to calculate
       //the intercept points
       U_strip_line[istrip][0] = int_L;
-      U_strip_line[istrip][1] = right_bound;
+      U_strip_line[istrip][1] = int_R;
       U_strip_line[istrip][2] = b;
-      U_strip_line[istrip][3] = 0;
-      
+      U_strip_line[istrip][3] = b-tan(angle);
+	  
       //The V strips are the mirror image of the U strips
-      V_strip_line[istrip][0] = 1 - int_L;
-      V_strip_line[istrip][1] = 1 - right_bound;
+      V_strip_line[istrip][0] = int_R;
+      V_strip_line[istrip][1] = int_L;
       V_strip_line[istrip][2] = b;
-      V_strip_line[istrip][3] = 0;
+      V_strip_line[istrip][3] = b-tan(angle);
     }
+    
     //This loop is for strips terminating on the top instead of the sides.
     for(int istrip=itop; istrip < gem_layer.U_strips; istrip++){
       double b = db*(istrip);
 
       //Again we use the formula for the line and simply plug in
-      U_strip_line[istrip][0] = (b - 1)/tan(angle);
+      U_strip_line[istrip][0] = (itop - istrip) / (gem_layer.U_strips - itop);
       U_strip_line[istrip][1] = int_R;
-      U_strip_line[istrip][2] = 1;
-      U_strip_line[istrip][3] = -tan(angle) + b;
+      U_strip_line[istrip][2] = 3.75;
+      U_strip_line[istrip][3] = b-tan(angle);
       
-      V_strip_line[istrip][0] = int_R - (b - 1)/tan(angle);
-      V_strip_line[istrip][1] = 0;
-      V_strip_line[istrip][2] = 1;
-      V_strip_line[istrip][3] = -tan(angle) + b;
+      V_strip_line[istrip][0] = 1 - (itop - istrip) / (gem_layer.U_strips - itop);
+      V_strip_line[istrip][1] = int_L;
+      V_strip_line[istrip][2] = 3.75;
+      V_strip_line[istrip][3] = b - tan(angle);
     }
-    
-  }
-  //For XY layers we simply use straight vertical and horizontal lines
-  //No geometry issues to consider here.
-  else{
+    //UVa layers axis are flipped 90deg relative to XY. Modules also run top-bot instead of bot-top
+  }else if(gem_layer.GEMtype == "UVa"){
+    for(int istrip=0; istrip < gem_layer.U_strips; istrip++){
+      U_strip_line[istrip][1] = 0;
+      U_strip_line[istrip][0] = gem_layer.V_strips;
+      U_strip_line[istrip][2] = gem_layer.U_strips - istrip;
+      U_strip_line[istrip][3] = gem_layer.U_strips - istrip;
+    }
+    for(int istrip=0; istrip < gem_layer.V_strips; istrip++){
+      V_strip_line[istrip][0] = gem_layer.V_strips - istrip;
+      V_strip_line[istrip][1] = gem_layer.V_strips - istrip;
+      V_strip_line[istrip][3] = 0;
+      V_strip_line[istrip][2] = gem_layer.U_strips;   
+    }
+    //For XY layers we simply use straight vertical and horizontal lines
+    //No geometry issues to consider here.
+  }else{
     for(int istrip=0; istrip < gem_layer.U_strips; istrip++){
       U_strip_line[istrip][0] = 0;
       U_strip_line[istrip][1] = gem_layer.V_strips;
@@ -411,21 +442,22 @@ void DrawStrip(GEMLayer gem_layer,double strip,double moduleID,double strip_line
 
       x[0] = strip_line[0];
       x[1] = strip_line[1];
-      y[0] = gem_layer.U_strips*moduleID + strip_line[2];
-      y[1] = gem_layer.U_strips*moduleID + strip_line[3];
+      y[0] = gem_layer.U_strips*(moduleID) + strip_line[2];
+      y[1] = gem_layer.U_strips*(moduleID) + strip_line[3];
 
   }
   
   //Set max ADC color to 600 and set line color depending on ADC value
   int ncolors = gStyle->GetNumberOfColors();
-  int max_adc = 600;
-
-  int ADCbin = int(adc*1.0/max_adc*double(ncolors));
-  
+  int max_adc = 3000; //range of 0-3000 for gmn courtesy of A. Puckett
+  int ADCbin = int((adc / max_adc) * double(ncolors));
   TLine *line = new TLine(x[0],y[0],x[1],y[1]);
-  line->SetLineColor(gStyle->GetColorPalette(TMath::Max(0,TMath::Min(ncolors-1,ADCbin))));
+  //line->SetLineColor(gStyle->GetColorPalette(TMath::Max(0,TMath::Min(ncolors-1,ADCbin))));
+  line->SetLineColor(kRed);
   line->Draw("same");
+  //cout << adc  << " " << ADCbin << " " << gStyle->GetColorPalette(TMath::Max(0,TMath::Min(ncolors-1,ADCbin))) << endl;
 }
+
 
 void displayEvent(Int_t entry = -1){ 
   if(entry == -1) {
@@ -446,33 +478,20 @@ void displayEvent(Int_t entry = -1){
       fbbChain->GetEntry(gCurrentEntry);
     }
   }
+  
   gui::entryInput->SetIntNumber(gCurrentEntry);
-  //fgemChain->GetEntry(gCurrentEntry);
-  //fgrinchChain->GetEntry(gCurrentEntry);
-  //fbbcalChain->GetEntry(gCurrentEntry);
-  //fhodoChain->GetEntry(gCurrentEntry);
   fbbChain->GetEntry(gCurrentEntry);
   std::cout << endl;
   std::cout << "Displaying event " << gCurrentEntry << std::endl;
   //gui::ledLabel->SetText(TString::Format("LED Bit: %02d, Count: %5d",2,3));
   
-  // --------------------------------------------------------------------------
-  // Get tree
-  // --------------------------------------------------------------------------
-  //Long64_t nentries = fChain->GetEntriesFast();
-  //for (Long64_t ev=0; ev<nentries;ev++) {
-
- 
+  
   //Draw Gem (histos)
-  subCanv[0]->cd(1);
-  gPad->Clear();   
-  gPad->Divide(nlayers,1);
-
   ConfigParser("gem_config.cfg");
-  //TH2F *h2[nlayers];
   GEMLayer gem_layer[nlayers];
-  double U_strip_line[nlayers][nstripsmax][4]; // [0],[1] is x2, x2 
+  double U_strip_line[nlayers][nstripsmax][4]; // [0],[1] is x1, x2 
   double V_strip_line[nlayers][nstripsmax][4]; // [2],[3] is y1, y2
+  
   //Set GEM layer variables and strip positions
   for(int ilayer=0; ilayer < nlayers; ilayer++){
 
@@ -486,60 +505,80 @@ void displayEvent(Int_t entry = -1){
   }
   
   for(int ilayer=0; ilayer < nlayers; ilayer++){
-    subCanv[0]->cd(1)->cd(ilayer+1);
-    gPad->SetTopMargin(0.001);
-    gPad->SetBottomMargin(0.001); 
-    //DrawModules(h2[ilayer], gem_layer[ilayer]);
-    DrawModules(gem_layer[ilayer]);
+    if (ilayer == 4){
+      p3->cd();;
+      gPad->SetTopMargin(0.005);
+      gPad->SetBottomMargin(0.005);
+      gPad->SetLeftMargin(0.005);
+      gPad->SetRightMargin(0.005);
+      gPad->SetFillColor(38);
+      DrawModules(gem_layer[ilayer]);
+    }else{
+      p1->cd(ilayer+1);
+      gPad->SetTopMargin(0.005);
+      gPad->SetBottomMargin(0.005); 
+      gPad->SetLeftMargin(0.005);
+      gPad->SetRightMargin(0.005);
+      gPad->SetFillColor(38);
+      DrawModules(gem_layer[ilayer]);
+    }
   }
 
   //// Loop over strips in event
   for(int istrip = 0; istrip < Ndata_Ustrips; istrip++){
-         
-    subCanv[0]->cd(1)->cd(layer[istrip]+1);
-     
+    if (layer[istrip]==4)
+      p3->cd();
+    else
+      p1->cd(layer[istrip]+1);
+    
     int mod_rel = module[istrip];
-
-    for(int ilayer = layer[istrip]; ilayer > 0; ilayer--)
-      mod_rel -= gem_layer[ilayer - 1].nmodules;
-
+    
+    if (layer[istrip]==4){
+      mod_rel = 11 - mod_rel;
+    }else{
+      for(int ilayer = layer[istrip]; ilayer > 0; ilayer--)
+	mod_rel -= gem_layer[ilayer - 1].nmodules;
+    }
+    
     //Draw the strips on the histogram
     DrawStrip(gem_layer[(int)layer[istrip]],ustriplo[istrip],mod_rel,U_strip_line[(int)layer[istrip]][(int)ustriplo[istrip]], ADCU[istrip]);
      
   }
-   
+  
   for(int istrip = 0; istrip < Ndata_Vstrips; istrip++){
-     
-    subCanv[0]->cd(1)->cd(layer[istrip]+1); 
- 
+    if (layer[istrip]==4)
+      p3->cd();
+    else
+      p1->cd(layer[istrip]+1); 
+    
     int mod_rel = module[istrip];
 
+    if (layer[istrip]==4){
+      mod_rel = 11 - mod_rel;
+    }else{
     for(int ilayer = layer[istrip]; ilayer > 0; ilayer--)
       mod_rel -= gem_layer[ilayer - 1].nmodules;
-
+    }
     //Draw the strips on the histogram
-    DrawStrip(gem_layer[(int)layer[istrip]],ustriplo[istrip],mod_rel,V_strip_line[(int)layer[istrip]][(int)ustriplo[istrip]], ADCV[istrip]);
+    DrawStrip(gem_layer[(int)layer[istrip]],vstriplo[istrip],mod_rel,V_strip_line[(int)layer[istrip]][(int)vstriplo[istrip]], ADCV[istrip]);
     
   }
- 
   
-  //Divide 2nd half of canvas for pmt displays
-  subCanv[0]->cd(2);
-  gPad->Clear();
-  gPad->Divide(4,1);
   
   //Draw Grinch
-  subCanv[0]->cd(2)->cd(1);
-  gPad->SetTopMargin(0.001);
-  gPad->SetBottomMargin(0.001); 
-  gPad->SetLeftMargin(0.001);
-  
+  p2->cd();
+  gPad->SetFillColor(39);
+  gPad->SetTopMargin(0.005);
+  gPad->SetBottomMargin(0.005);
+  gPad->SetLeftMargin(0.005);
+  gPad->SetRightMargin(0.005);
+
   for (int i = 0; i<510; i++){
     PMT[i]->SetFillColor(18);
     PMT[i]->Draw("same");
-    PMT_Label[i]->SetFillColor(0);
-    PMT_Label[i]->SetTextSize(1);
-    PMT_Label[i]->Draw("same");
+    //PMT_Label[i]->SetFillColor(0);
+    //PMT_Label[i]->SetTextSize(1);
+    //PMT_Label[i]->Draw("same");
   }
     
   for(int r=0; r<N_PMT; r++)  //Reset individual events tube hits counter for each event.
@@ -597,39 +636,24 @@ void displayEvent(Int_t entry = -1){
   
     
   //Draw Preshower
-  subCanv[0]->cd(2)->cd(2);
-  gPad->SetTopMargin(0.001);
-  gPad->SetBottomMargin(0.001); 
+  p4->cd();
+  gPad->SetTopMargin(0.005);
+  gPad->SetBottomMargin(0.005);
+  gPad->SetLeftMargin(0.005);
+  gPad->SetRightMargin(0.005);
+  gPad->SetFillColor(30);
   
   delete hPS;
   hPS = new TH2F("hPS",
 		 "Preshower",
 		 2,0,2,
 		 26,0,26);
-  
-  //cout << "Ndata for clus:" << endl;
-  //cout << "atime: " << Tbb->Ndata_bb_ps_clus_atime << "  id: " << Tbb->Ndata_bb_ps_clus_id << "  e: " << Tbb->Ndata_bb_ps_clus_e << "  ec: " << Tbb->Ndata_bb_ps_clus_e_c << "  row: " << Tbb->Ndata_bb_ps_clus_row << "  col: " << Tbb->Ndata_bb_ps_clus_col << "  x: " << Tbb->Ndata_bb_ps_clus_x << "  y:" << Tbb->Ndata_bb_ps_clus_y << endl;
-  //cout << "Ndata for blk:" << endl;
-  //cout << "atime: " << Tbb->Ndata_bb_ps_clus_blk_atime << "  id: " << Tbb->Ndata_bb_ps_clus_blk_id << "  e: " << Tbb->Ndata_bb_ps_clus_blk_e << "  ec: " << Tbb->Ndata_bb_ps_clus_blk_e_c << "  row: " << Tbb->Ndata_bb_ps_clus_blk_row << "  col: " << Tbb->Ndata_bb_ps_clus_blk_col << "  x: " << Tbb->Ndata_bb_ps_clus_blk_x << "  y:" << Tbb->Ndata_bb_ps_clus_blk_y << endl;
-  
-  //cout << "data for clus:" << endl;
 
-  //if (Tbb->Ndata_bb_ps_clus_id == 0){
-    
-  //cout << "atime: " << Tbb->bb_ps_clus_atime[0] << "  id: " << Tbb->bb_ps_clus_id[0] << "  e: " << Tbb->bb_ps_clus_e[0] << "  ec: " << Tbb->bb_ps_clus_e_c[0] << "  row: " << Tbb->bb_ps_clus_row[0] << "  col: " << Tbb->bb_ps_clus_col[0] << "  x: " << Tbb->bb_ps_clus_x[0] << "  y:" << Tbb->bb_ps_clus_y[0] << endl;
-    
-    //hPS->Fill(Tbb->bb_ps_clus_col[0],Tbb->bb_ps_clus_row[0],Tbb->bb_ps_clus_e_c[0]);
-    
-  //}else{
-  for ( Int_t k = 0; k < Tbb->Ndata_bb_ps_clus_id; k++ ){
-      
-    //cout << "atime: " << Tbb->bb_ps_clus_atime[k] << "  id: " << Tbb->bb_ps_clus_id[k] << "  e: " << Tbb->bb_ps_clus_e[k] << "  ec: " << Tbb->bb_ps_clus_e_c[k] << "  row: " << Tbb->bb_ps_clus_row[k] << "  col: " << Tbb->bb_ps_clus_col[k] << "  x: " << Tbb->bb_ps_clus_x[k] << "  y:" << Tbb->bb_ps_clus_y[k] << endl;
-    
-    if ( Tbb->bb_ps_clus_e_c[k] > 0) {
-      hPS->Fill(Tbb->bb_ps_clus_col[k],Tbb->bb_ps_clus_row[k],Tbb->bb_ps_clus_e_c[k]);
+  for ( Int_t k = 0; k < Tbb->Ndata_bb_ps_clus_blk_id; k++){
+    if ( Tbb->bb_ps_clus_blk_e_c[k] ) {
+      hPS->Fill(Tbb->bb_ps_clus_blk_col[k],Tbb->bb_ps_clus_blk_row[k],Tbb->bb_ps_clus_blk_e_c[k]);
     } 
   }
-
   
   hPS->GetXaxis()->SetLabelSize(0.0);
   hPS->GetXaxis()->SetLabelColor(10); 
@@ -640,83 +664,85 @@ void displayEvent(Int_t entry = -1){
   
 
   //Draw Hodo
-  subCanv[0]->cd(2)->cd(3);
-  gPad->SetTopMargin(0.001);
-  gPad->SetBottomMargin(0.001); 
-    
+  p5->cd();
+  //gPad->SetTopMargin();
+  //gPad->SetBottomMargin();
+  //gPad->SetLeftMargin();
+  //gPad->SetRightMargin();
+  gPad->SetFillColor(0);
+
   for(int j=0; j<90; j++){
     // reset bar and pmt colours for each event
     if( j == 0 ) {
       bar[j]->SetFillColor(kGray+1);
       bar[j]->Draw();
-      pmtL[j]->SetFillColor(kGray+2);
-      pmtL[j]->Draw("same");
-      pmtR[j]->SetFillColor(kGray+2);
-      pmtR[j]->Draw("same");
+      //pmtL[j]->SetFillColor(kGray+2);
+      //pmtL[j]->Draw("same");
+      //pmtR[j]->SetFillColor(kGray+2);
+      //pmtR[j]->Draw("same");
     }
     else {
       bar[j]->SetFillColor(kGray+1);
       bar[j]->Draw("same");
-      pmtL[j]->SetFillColor(kGray+2);
-      pmtL[j]->Draw("same");
-      pmtR[j]->SetFillColor(kGray+2);
-      pmtR[j]->Draw("same");
+      //pmtL[j]->SetFillColor(kGray+2);
+      //pmtL[j]->Draw("same");
+      //pmtR[j]->SetFillColor(kGray+2);
+      //pmtR[j]->Draw("same");
     }
 
     hit[j]->SetMarkerStyle(28);
     hit[j]->SetMarkerColor(1);
     hit[j]->SetMarkerSize(1.0);
-
-    /*
-    // use GenericDetector variables for PMT display (blue if a "good" tdc hit)
-    if( fabs(Tbb->bb_hodotdc_clus_size[j]) < 10000. ) {
-      pmtL[j]->SetFillColor(4);
-      pmtL[j]->Draw("same");
-    }
-    if(fabs(Tbb->bb_hodotdc_clus_size[j+90]) < 10000. ) {
-      pmtR[j]->SetFillColor(4);
-      pmtR[j]->Draw("same");
-    }
-    */
+    
   }
-    
-    
+  
+  /*
+  for(int j=0; j<(Int_t)Tbb->Ndata_bb_hodotdc_clus_id; j++) {
+    cout << Tbb->bb_hodotdc_clus_id[j] <<" " << Tbb->bb_hodotdc_clus_tmean[j] << endl;
+  }
+  */
+  
+  timecut = 2.5;
+  double tmeancut = 300.0;
   // use TimingHodoscope variables for bar display (red if a "good" hit)
-    for(int j=0; j<(Int_t)Tbb->Ndata_bb_hodotdc_clus_bar_tdc_id; j++) {
-    bar[(Int_t)Tbb->bb_hodotdc_clus_bar_tdc_id[j]]->SetFillColor(2);
-    bar[(Int_t)Tbb->bb_hodotdc_clus_bar_tdc_id[j]]->Draw("same") ;
-
-    //cout << Tbb->bb_hodotdc_allclus_ymean[j] << endl;
-
-    //if ( fabs(Tbb->bb_hodotdc_allclus_ymean[(Int_t)Tbb->Ndata_bb_hodotdc]) < 0.3 ) {
-  
-    hit[j]->SetX(0.5+Tbb->bb_hodotdc_clus_bar_tdc_timehitpos[j]);
-    hit[j]->SetY(ymin+height/2. + (Int_t)Tbb->bb_hodotdc_clus_bar_tdc_id[j]*separation);
-    hit[j]->Draw("same");
-    pmtL[(Int_t)Tbb->bb_hodotdc_clus_bar_tdc_id[j]]->SetFillColor(4);
-    pmtL[(Int_t)Tbb->bb_hodotdc_clus_bar_tdc_id[j]]->Draw("same");
-    pmtR[(Int_t)Tbb->bb_hodotdc_clus_bar_tdc_id[j]]->SetFillColor(4);
-    pmtR[(Int_t)Tbb->bb_hodotdc_clus_bar_tdc_id[j]]->Draw("same");
-    //}
-    }
-  
-
-  //Draw Shower
-  subCanv[0]->cd(2)->cd(4);
-  gPad->SetTopMargin(0.001);
-  gPad->SetBottomMargin(0.001); 
+  for(int j=0; j<(Int_t)Tbb->Ndata_bb_hodotdc_allclus_id; j++) {
+    if (fabs(Tbb->bb_hodotdc_allclus_tdiff[j]) > timecut) continue;
+    //if (fabs(Tbb->bb_hodotdc_allclus_tmean[j]) < tmeancut) continue;
+    cout << "Hodo time: " << Tbb->bb_hodotdc_allclus_tmean[j] << endl;
     
+    bar[(Int_t)Tbb->bb_hodotdc_allclus_id[j]]->SetFillColor(2);
+    bar[(Int_t)Tbb->bb_hodotdc_allclus_id[j]]->Draw("same") ;
+
+    hit[j]->SetX(0.5+Tbb->bb_hodotdc_allclus_ymean[j]);
+    hit[j]->SetY(ymin+height/2. + (Int_t)Tbb->bb_hodotdc_allclus_id[j]*separation);
+    hit[j]->Draw("same");
+    //pmtL[(Int_t)Tbb->bb_hodotdc_allclus_id[j]]->SetFillColor(4);
+    //pmtL[(Int_t)Tbb->bb_hodotdc_allclus_id[j]]->Draw("same");
+    //pmtR[(Int_t)Tbb->bb_hodotdc_allclus_id[j]]->SetFillColor(4);
+    //pmtR[(Int_t)Tbb->bb_hodotdc_allclus_id[j]]->Draw("same");
+  }
+  
+  
+  //Draw Shower
+  p6->cd();
+  gPad->SetTopMargin(0.005);
+  gPad->SetBottomMargin(0.005); 
+  gPad->SetLeftMargin(0.005);
+  gPad->SetRightMargin(0.005);
+  gPad->SetFillColor(30);
+  
   delete hSH;
   hSH = new TH2F("bSH",
 		 "Shower",
 		 7,0,7,
 		 27,0,27);
   
-  for ( int k = 0; k < Tbb->Ndata_bb_sh_clus_id; k++ ){
-    if ( Tbb->bb_sh_clus_e_c[k] > 0) {
-      hSH->Fill(Tbb->bb_sh_clus_col[k],Tbb->bb_sh_clus_row[k],Tbb->bb_sh_clus_e_c[k]);
-    }
-  } 
+  
+  for ( Int_t k = 0; k < Tbb->Ndata_bb_sh_clus_blk_id; k++){
+    if ( Tbb->bb_sh_clus_blk_e_c[k] ) {
+      hSH->Fill(Tbb->bb_sh_clus_blk_col[k],Tbb->bb_sh_clus_blk_row[k],Tbb->bb_sh_clus_blk_e_c[k]);
+    } 
+  }
   
   hSH->GetXaxis()->SetLabelSize(0.0);
   hSH->GetXaxis()->SetLabelColor(10); 
@@ -728,7 +754,6 @@ void displayEvent(Int_t entry = -1){
   
   //END OF DISPLAYEVENT()
 }
-
 
 
 
@@ -764,9 +789,11 @@ bool is_number(const std::string& mystring)
 }
 
 
-void DisplayBB(){
+void DisplayBB(Int_t runnum = -1, char skipAns = 'x'){
+  while (runnum < 0){
   std::cout << "Enter Run Number" << endl;
   std::cin >> runnum;
+  }
   
   while (skipAns != 'y' && skipAns != 'Y' && skipAns != 'n' && skipAns != 'N'){
   std::cout << "Skip events with no tracks? (y/n)" << endl;
@@ -779,10 +806,11 @@ void DisplayBB(){
   cout << Nevents << " events in run." << endl;
 
   //--------------------------------
-  // Gems - later
+  // Gems
   //--------------------------------
   ConfigParser("gem_config.cfg");
-  //TH2F* h[nlayers];
+  
+  
   //--------------------------------
   // Grinch
   //--------------------------------
@@ -804,13 +832,11 @@ void DisplayBB(){
 	  if ( i%2==0 )
 	    {
               x = ((float)j+1.5) * 2. * xrad - xrad;
-              //y = ((float)N_ROW - ((float)i * sin(60*TMath::DegToRad())) + 0.5) * yrad  +  y_off;
 	      y = (float)(N_ROW - i) * 2. * yrad - yrad;
 	    }
           else
             {
               x = (float)(j+1) * 2. * xrad - xrad;
-	      // y = ((float)N_ROW - ((float)i * sin(60*TMath::DegToRad())) + 0.5) * yrad  +  y_off;
 	      y = (float)(N_ROW - i) * 2. * yrad - yrad;
 	    }
 	  
@@ -821,8 +847,7 @@ void DisplayBB(){
 	  PMT_Label[k] = new TPaveLabel(x-xrad*labelsize, y-yrad*labelsize, x+xrad*labelsize, y+yrad*labelsize, Form("%d",k));
           PMT[k]=new TEllipse(x, y, xrad, yrad);
 	  k++;
-	  //cout << k << endl;
-	    }
+	}
     }
   
   /*
@@ -836,7 +861,6 @@ void DisplayBB(){
   double PSseperation = 0.0346;
   double PSpmtxmin   = 0.10;
   double PSpmtxmax   = 0.49;
-  
   
   
   for(int i = 0; i<2; i++){
@@ -871,19 +895,18 @@ void DisplayBB(){
   }
   */
   
+
   //--------------------------------
   // Hodoscope
   //--------------------------------
-  
-
   for(int i = 0; i<90; i++ ) {
     bar[i]  = new TBox(barxmin, (ymin + (float)i*separation), barxmax, (ymin + height + (float)i*separation));
-    pmtL[i] = new TBox(pmtLxmin,(ymin + (float)i*separation), pmtLxmax,(ymin + height + (float)i*separation));
-    pmtR[i] = new TBox(pmtRxmin,(ymin + (float)i*separation), pmtRxmax,(ymin + height + (float)i*separation));
+    //pmtL[i] = new TBox(pmtLxmin,(ymin + (float)i*separation), pmtLxmax,(ymin + height + (float)i*separation));
+    //pmtR[i] = new TBox(pmtRxmin,(ymin + (float)i*separation), pmtRxmax,(ymin + height + (float)i*separation));
     hit[i]  = new TMarker(0,0,2);
   }
   
-  gui::SetupGUI();
+  gui::SetupGUI(runnum);
   displayEvent(gCurrentEntry);
   
   /*

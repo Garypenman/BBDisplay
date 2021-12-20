@@ -282,6 +282,7 @@ public :
    Int_t           Ndata_bb_sh_clus_blk_y;
    Double_t        bb_sh_clus_blk_y[10];   //[Ndata.bb.sh.clus_blk.y]
    Int_t           Ndata_bb_tdctrig_tdc;
+   //trig
    Double_t        bb_tdctrig_tdc[6];   //[Ndata.bb.tdctrig.tdc]
    Int_t           Ndata_bb_tr_beta;
    Double_t        bb_tr_beta[3];   //[Ndata.bb.tr.beta]
