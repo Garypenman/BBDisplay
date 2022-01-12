@@ -1,0 +1,44 @@
+.L replay_display.C+
+echo $SBS_REPLAY
+.q
+.L replay_display.C
+.q
+.L replay_display.C+
+.q
+.L replay_display.C+
+.q
+.L replay_display.C
+.q
+.L replay_display.C+
+.q
+.L replay_display.C+
+.q
+.L replay_display.C+
+replay_djh(11953)
+.q
+.L replay_display.C+
+replay_djh(13045)
+.q
+.L replay_display.C+
+replay_display(13045)
+.q
+.L replay_display.C+
+replay_display(13045)
+.q
+.L replay_display.C+
+.q
+TFile *_file0 = TFile::Open("/adaqfs/home/a-onl/sbs/BBDisplay/Rootfiles/gmn_replayed_fulltree_13045_stream0_seg0_4.root")
+.q
+TFile *_file0 = TFile::Open("/adaqfs/home/a-onl/sbs/BBDisplay/Rootfiles/gmn_replayed_fulltree_13045_stream0_seg0_4.root")
+.q
+.q
+.q
+.L replay_display.C+
+replay_display(13045)
+.q
+.L replay_display.C+
+replay_display(13064)
+.q
+.L replay_display.C+
+replay_display(13064)
+.q
