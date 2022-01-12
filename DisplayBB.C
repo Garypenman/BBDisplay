@@ -43,7 +43,8 @@
 #include <TVectorD.h>
 #include <vector>
 
-#include "Bigbite.C"
+//#include "Bigbite.C"
+#include "GMn.C"
 
 std::string user_input;
 
@@ -62,7 +63,8 @@ TPad *p6; //sh
 
 TString bbFile;
 TChain *fbbChain;
-Bigbite *Tbb;
+//Bigbite *Tbb;
+GMn *Tbb;
 
 void Setup();
 void clicked_displayEntryButton();
@@ -150,8 +152,10 @@ void Setup(Int_t runNum, char skipAns) {
   //need to get this path from the replay scripts output dir
   TString RootDir = gSystem->Getenv("OUT_DIR"); 
   fbbChain = new TChain("T");
-  fbbChain->Add(RootDir+"gmn_replayed_"+runNum+"_stream0_seg*.root");
-  Tbb = new Bigbite(fbbChain);
+  //fbbChain->Add(RootDir+"gmn_replayed_"+runNum+"_stream0_seg*.root");
+  fbbChain->Add(RootDir+"/gmn_replayed_fulltree_"+runNum+"_stream0_seg*.root");
+  //Tbb = new Bigbite(fbbChain);
+  Tbb = new GMn(fbbChain);
   
   //branch address for gem display - it needs these
   fbbChain->SetBranchAddress("fEvtHdr.fEvtNum",&evtID);
@@ -706,7 +710,7 @@ void displayEvent(Int_t entry = -1){
   double tmeancut = 300.0;
   // use TimingHodoscope variables for bar display (red if a "good" hit)
   for(int j=0; j<(Int_t)Tbb->Ndata_bb_hodotdc_allclus_id; j++) {
-    if (fabs(Tbb->bb_hodotdc_allclus_tdiff[j]) > timecut) continue;
+    //if (fabs(Tbb->bb_hodotdc_allclus_tdiff[j]) > timecut) continue;
     //if (fabs(Tbb->bb_hodotdc_allclus_tmean[j]) < tmeancut) continue;
     cout << "Hodo time: " << Tbb->bb_hodotdc_allclus_tmean[j] << endl;
     
